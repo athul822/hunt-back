@@ -1,11 +1,24 @@
 const { v4: uuidv4 } = require("uuid");
 const Places = require("../models/places");
+
+
+const getRandomCoordinate = async (lat, lng, radius) => {
+  const randomAngle = Math.random() * 2 * Math.PI;
+  const randomRadius = Math.random() * radius;
+  const deltaLat = randomRadius * Math.cos(randomAngle) / 111320; // Convert meters to degrees
+  const deltaLng = randomRadius * Math.sin(randomAngle) / (111320 * Math.cos(lat * Math.PI / 180)); // Adjust for latitude
+  return [lat + deltaLat, lng + deltaLng];
+};
 exports.createPlaces = async (req, res) => {
     try {
         req.body.id = uuidv4();
-        const newHotel = await Places.create(req.body);
-        console.log({ newHotel });
-
+        console.log(req.body,"body");
+        // console.log({ newHotel });
+        const circleRadius = 80;
+        const zone =  await getRandomCoordinate(req.body.coords.latitude, req.body.coords.longitude, circleRadius);
+        // console.log(zone,"zone");
+        req.body.zone = zone;
+        const newHotel =  await Places.create(req.body);
         // Send success response
         res.json({ message: "User registration successful", newHotel });
     } catch (error) {
@@ -20,7 +33,8 @@ exports.createPlaces = async (req, res) => {
 
 
 exports.listPlaces = async (req, res) => {
-    const query = req.body.districtId == 'all' || req.body.id == 'all' ? {} : {districtId: req.body.districtId};
+    // const query = req.body.districtId == 'all' || req.body.id == 'all' ? {} : {districtId: req.body.districtId};
+    const query = {};
     console.log(" login :", query);
     Places.find(
       query

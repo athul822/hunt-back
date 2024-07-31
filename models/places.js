@@ -34,6 +34,9 @@ const PlaceSchema = new mongoose.Schema(
         required: true,
       },
     },
+    zone: {
+      type: Array,
+    },
   },
   { timestamps: true } // Automatically add createdAt and updatedAt fields
 );
