@@ -85,7 +85,7 @@ exports.userLogin = async (req, res) => {
   )
     .then((data) => {
       if (data) {
-        return res.status(403).json({
+        return res.status(200).json({
           message: "sign in success",
           data: data,
         });
