@@ -1,5 +1,6 @@
 const { v4: uuidv4 } = require("uuid");
 const Places = require("../models/places");
+const Contest = require("../models/contest");
 
 
 const getRandomCoordinate = async (lat, lng, radius) => {
@@ -169,5 +170,26 @@ exports.listPlaces = async (req, res) => {
         message: "An error occurred while searching for places.",
         error: error.message,
       });
+    }
+  };
+
+
+  exports.createContest = async (req, res) => {
+    try {
+        req.body.id = uuidv4();
+        console.log(req.body,"body");
+        // console.log({ newHotel });
+        // console.log(zone,"zone");
+        // req.body.zone = zone;
+        const newContest =  await Contest.create(req.body);
+        // Send success response
+        res.json({ message: "User registration successful", newContest });
+    } catch (error) {
+        // Handle errors
+        console.error("Error in user registration:", error);
+        res.status(500).json({
+            message: "Unable to register new user",
+            error: error.message
+        });
     }
   };
