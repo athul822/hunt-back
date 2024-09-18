@@ -37,7 +37,7 @@ exports.listPlaces = async (req, res) => {
     // const query = req.body.districtId == 'all' || req.body.id == 'all' ? {} : {districtId: req.body.districtId};
     const query = {};
     console.log(" login :", query);
-    Places.find(
+    Contest.find(
       query
     )
       .then((data) => {
