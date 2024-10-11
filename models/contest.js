@@ -73,6 +73,10 @@ const ContestSchema = new mongoose.Schema(
       type: String,
       default: "",
     },
+    secretCode: {
+      type: String,
+      default: "",
+    },
   },
   { timestamps: true }
 );
