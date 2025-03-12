@@ -18,6 +18,34 @@ const UsersSchema = new mongoose.Schema(
       type: String,
       required: true,
       unique: true,
+    },
+    username: {
+      type: String,
+    },
+    gender: {
+      type: String,
+    },
+    dob: {
+      type: Date,
+    },
+    address: {
+      type: String,
+    },
+    city: {
+      type: String,
+    },
+    state: {
+      type: String,
+    },
+    zip: {
+      type: String,
+    },
+    mobile: {
+      type: String,
+    },
+    termsAccepted: {
+      type: Boolean,
+      default: false,
     }
   },
   { timestamps: true }
