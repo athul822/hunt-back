@@ -64,6 +64,36 @@ exports.listPlaces = async (req, res) => {
     );
 };
 
+exports.listContest = async (req, res) => {
+  const query = {};
+  console.log("Contest fetch query:", query);
+
+  Contest.find(query)
+    .select("playZone address contestName")
+    .then((data) => {
+      if (data && data.length > 0) {
+        console.log("Contests found:", data.length);
+        console.log("Contest data:", JSON.stringify(data, null, 2));
+        res.json({
+          message: "Contest fetch Success",
+          data,
+        });
+      } else {
+        console.log("No contests found for the given query");
+        res.status(400).json({
+          message: "No contests found",
+        });
+      }
+    })
+    .catch((err) => {
+      console.error("Error fetching contests:", err);
+      res.status(400).json({
+        message: "unable to fetch",
+        error: err.message,
+      });
+    });
+};
+
 exports.listContestById = async (req, res) => {
   // const query = req.body.districtId == 'all' || req.body.id == 'all' ? {} : {districtId: req.body.districtId};
   const query = { _id: req.body._id };

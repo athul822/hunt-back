@@ -11,7 +11,7 @@ connectDB();
 
 const app = express();
 const corsOptions = {
-  origin: ["https://k-tourism.netlify.app", "http://localhost:3000"],
+  origin: ["https://k-tourism.netlify.app", "http://localhost:8000"],
   methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"], 
   credentials: true, 
 };
