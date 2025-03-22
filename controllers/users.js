@@ -4,16 +4,7 @@ const bcrypt = require("bcrypt");
 
 exports.createUsers = async (req, res) => {
   try {
-    // Hash the password
-    // const hashPassword = await bcrypt.hash(req.body.password, 10);
-
-    // Generate unique user ID
-    // req.body.userId = uuidv4();
-
-    // Store the hashed password
-    // req.body.password = hashPassword;
-
-    // Check if user already exists
+    console.log(req.body);
     const existingUser = await Users.findOne({ email: req.body.email });
     if (existingUser) {
       return res.status(403).json({
@@ -101,4 +92,35 @@ exports.userLogin = async (req, res) => {
         error: err.message,
       })
     );
+};
+
+exports.updateUser = async (req, res) => {
+  try {
+    // Remove protected fields from the update request
+    const { id, email, username, ...updateData } = req.body;
+
+    // Find and update the user
+    const updatedUser = await Users.findByIdAndUpdate(
+      req.params.id,
+      { $set: updateData },
+      { new: true, runValidators: true }
+    );
+
+    if (!updatedUser) {
+      return res.status(404).json({
+        message: "User not found"
+      });
+    }
+
+    res.status(200).json({
+      message: "User details updated successfully",
+      user: updatedUser
+    });
+  } catch (error) {
+    console.error("Error updating user:", error);
+    res.status(500).json({
+      message: "Unable to update user details",
+      error: error.message
+    });
+  }
 };

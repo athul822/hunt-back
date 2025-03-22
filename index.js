@@ -25,9 +25,9 @@ app.get("/", (req, res) => res.send("server is active"));
 
 // use routes
 app.use("/api/user", users);
-app.use("/api/hotels", hotels);
+// app.use("/api/hotels", hotels);
 app.use("/api/places", places);
-app.use("/api/rooms", rooms);
+// app.use("/api/rooms", rooms);
 
 const PORT = process.env.PORT || 8000;
 

@@ -43,6 +43,9 @@ const UsersSchema = new mongoose.Schema(
     mobile: {
       type: String,
     },
+    profileImage: {
+      type: String,
+    },
     termsAccepted: {
       type: Boolean,
       default: false,
