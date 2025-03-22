@@ -3,9 +3,7 @@ const cors = require("cors");
 const bodyParser = require("body-parser");
 const connectDB = require("./config/db");
 const users = require("./routes/users");
-const hotels = require("./routes/hotels");
 const places = require("./routes/places");
-const rooms = require("./routes/rooms");
 
 connectDB();
 
@@ -25,9 +23,7 @@ app.get("/", (req, res) => res.send("server is active"));
 
 // use routes
 app.use("/api/user", users);
-// app.use("/api/hotels", hotels);
 app.use("/api/places", places);
-// app.use("/api/rooms", rooms);
 
 const PORT = process.env.PORT || 8000;
 
