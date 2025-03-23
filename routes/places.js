@@ -1,5 +1,6 @@
 const express = require("express");
 const router = express.Router();
+const { protect, restrictTo } = require("../middleware/auth");
 const {
   createPlaces,
   listPlaces,
@@ -12,14 +13,23 @@ const {
   listContest
 } = require("../controllers/places");
 
-router.post("/register", createPlaces);
-router.post("/list", listPlaces);
-router.post("/listById", listContestById);
-router.post("/listContest", listContest);
-router.post("/getPlaceByDistrict", getPlaceByDistrict);
-router.post("/delete", deletePlaces);
+// Public routes - no authentication required
 router.get("/recent", getLastFivePlaces);
 router.post("/search", searchPlaceByKeyword);
+router.post("/list", listPlaces);
+router.post("/getPlaceByDistrict", getPlaceByDistrict);
+router.post("/listContest", listContest);
+router.post("/listById", listContestById);
+
+// Protected routes - require authentication
+router.use(protect);
+
+// User authenticated routes
+router.post("/register", createPlaces);
 router.post("/createContest", createContest);
+
+// Admin only routes
+router.use(restrictTo('admin'));
+router.post("/delete", deletePlaces);
 
 module.exports = router;

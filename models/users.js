@@ -19,6 +19,16 @@ const UsersSchema = new mongoose.Schema(
       required: true,
       unique: true,
     },
+    googleId: {
+      type: String,
+      unique: true,
+      sparse: true // Allows multiple documents where googleId is not set
+    },
+    role: {
+      type: String,
+      enum: ['user', 'admin'],
+      default: 'user'
+    },
     username: {
       type: String,
     },
