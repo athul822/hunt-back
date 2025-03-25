@@ -37,43 +37,15 @@ exports.createPlaces = async (req, res) => {
   }
 };
 
-exports.listPlaces = async (req, res) => {
-  // const query = req.body.districtId == 'all' || req.body.id == 'all' ? {} : {districtId: req.body.districtId};
-  const query = req.body._id ? { _id: req.body._id } : {};
-  console.log(" login :", query);
-  Contest.find(query)
-    .then((data) => {
-      if (data) {
-        console.log(data);
-        res.json({
-          message: "Hotels fetch Success",
-          //   token,
-          data,
-        });
-      } else {
-        res.status(400).json({
-          message: "No hotels found",
-        });
-      }
-    })
-    .catch((err) =>
-      res.status(400).json({
-        message: "unable to login",
-        error: err.message,
-      })
-    );
-};
-
 exports.listContest = async (req, res) => {
   const query = {};
   console.log("Contest fetch query:", query);
 
   Contest.find(query)
-    .select("playZone address contestName")
+    .select("_id contestName subjectImage difficulty maxParticipants duration prizePool startDate startTime address.display_name")
     .then((data) => {
       if (data && data.length > 0) {
         console.log("Contests found:", data.length);
-        console.log("Contest data:", JSON.stringify(data, null, 2));
         res.json({
           message: "Contest fetch Success",
           data,
@@ -95,27 +67,25 @@ exports.listContest = async (req, res) => {
 };
 
 exports.listContestById = async (req, res) => {
-  // const query = req.body.districtId == 'all' || req.body.id == 'all' ? {} : {districtId: req.body.districtId};
   const query = { _id: req.body._id };
-  console.log(" login :", query);
-  Contest.find(query)
+  console.log("Contest fetch by ID:", query);
+  Contest.findOne(query)
     .then((data) => {
       if (data) {
-        console.log(data);
+        console.log("Contest found:", data._id);
         res.json({
-          message: "Contetst fetch Success",
-          //   token,
+          message: "Contest fetch Success",
           data,
         });
       } else {
-        res.status(400).json({
+        res.status(404).json({
           message: "No Contest found",
         });
       }
     })
     .catch((err) =>
       res.status(400).json({
-        message: "unable to fetch",
+        message: "Unable to fetch contest",
         error: err.message,
       })
     );

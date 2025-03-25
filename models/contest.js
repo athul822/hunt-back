@@ -35,6 +35,10 @@ const ContestSchema = new mongoose.Schema(
         type: Number,
         required: true,
       },
+      altitudeAccuracy: {
+        type: Number,
+        default: 0,
+      }
     },
     playZone: {
       lat: {
@@ -51,15 +55,12 @@ const ContestSchema = new mongoose.Schema(
       },
     },
     address: {
-      road: String,
-      city: String,
-      county: String,
-      state: String,
-      postcode: String,
-      country: String,
-      country_code: String,
       display_name: String,
       category: String,
+      postcode: String,
+      city: String,
+      state: String,
+      country: String,
     },
     hint_image_1: {
       type: String,
@@ -77,6 +78,45 @@ const ContestSchema = new mongoose.Schema(
       type: String,
       default: "",
     },
+    difficulty: {
+      type: String,
+      enum: ['Easy', 'Medium', 'Hard'],
+      default: 'Medium'
+    },
+    maxParticipants: {
+      type: Number,
+      default: 4
+    },
+    duration: {
+      type: Number,
+      default: 60
+    },
+    entryFee: {
+      type: Number,
+      default: 0
+    },
+    startDate: {
+      type: String,
+      required: true
+    },
+    startTime: {
+      type: String,
+      required: true
+    },
+    prizePool: {
+      type: Number,
+      default: 0
+    },
+    contestType: {
+      type: String,
+      enum: ['standard', 'premium'],
+      default: 'standard'
+    },
+    visibility: {
+      type: String,
+      enum: ['public', 'private'],
+      default: 'public'
+    }
   },
   { timestamps: true }
 );

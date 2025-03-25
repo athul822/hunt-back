@@ -3,7 +3,6 @@ const router = express.Router();
 const { protect, restrictTo } = require("../middleware/auth");
 const {
   createPlaces,
-  listPlaces,
   getPlaceByDistrict,
   deletePlaces,
   getLastFivePlaces,
@@ -16,10 +15,7 @@ const {
 // Public routes - no authentication required
 router.get("/recent", getLastFivePlaces);
 router.post("/search", searchPlaceByKeyword);
-router.post("/list", listPlaces);
 router.post("/getPlaceByDistrict", getPlaceByDistrict);
-router.post("/listContest", listContest);
-router.post("/listById", listContestById);
 
 // Protected routes - require authentication
 router.use(protect);
@@ -27,6 +23,9 @@ router.use(protect);
 // User authenticated routes
 router.post("/register", createPlaces);
 router.post("/createContest", createContest);
+router.post("/list", listContest);
+router.post("/listContest", listContest);
+router.post("/listContestById", listContestById);
 
 // Admin only routes
 router.use(restrictTo('admin'));
