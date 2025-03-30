@@ -14,9 +14,8 @@ const { helmetConfig, limiter, loginLimiter } = require("./middleware/security")
 
 // Import routes
 const users = require("./routes/users");
-const hotels = require("./routes/hotels");
 const places = require("./routes/places");
-const rooms = require("./routes/rooms");
+
 
 // Connect to database
 connectDB();
@@ -52,8 +51,7 @@ app.get("/", (req, res) => res.send("server is active"));
 // API routes
 app.use("/api/user", users);
 app.use("/api/places", places);
-app.use("/api/hotels", hotels);
-app.use("/api/rooms", rooms);
+
 
 // Global error handler
 app.use((err, req, res, next) => {
