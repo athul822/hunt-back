@@ -6,6 +6,11 @@ const ContestSchema = new mongoose.Schema(
       type: String,
       default: "",
     },
+    creatorId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Users',
+      required: true
+    },
     subjectImage: {
       type: String,
       default: "",

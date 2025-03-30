@@ -42,7 +42,7 @@ exports.listContest = async (req, res) => {
   console.log("Contest fetch query:", query);
 
   Contest.find(query)
-    .select("_id contestName subjectImage difficulty maxParticipants duration prizePool startDate startTime address.display_name")
+    .select("_id contestName subjectImage difficulty maxParticipants duration prizePool startDate startTime address.display_name creatorId")
     .then((data) => {
       if (data && data.length > 0) {
         console.log("Contests found:", data.length);
@@ -202,18 +202,49 @@ exports.createContest = async (req, res) => {
   try {
     req.body.id = uuidv4();
     console.log(req.body, "body");
-    // console.log({ newHotel });
-    // console.log(zone,"zone");
-    // req.body.zone = zone;
+    
+    // Add creator ID from authenticated user
+    req.body.creatorId = req.user._id;
+    
     const newContest = await Contest.create(req.body);
     // Send success response
-    res.json({ message: "User registration successful", newContest });
+    res.json({ message: "Contest created successfully", newContest });
   } catch (error) {
     // Handle errors
-    console.error("Error in user registration:", error);
+    console.error("Error in contest creation:", error);
     res.status(500).json({
-      message: "Unable to register new user",
+      message: "Unable to create contest",
       error: error.message,
+    });
+  }
+};
+
+exports.getMyContests = async (req, res) => {
+  try {
+    const query = { creatorId: req.user._id };
+    console.log("My contests fetch query:", query);
+
+    const contests = await Contest.find(query)
+      .select("_id contestName subjectImage difficulty maxParticipants duration prizePool startDate startTime address.display_name");
+
+    if (contests && contests.length > 0) {
+      console.log("User contests found:", contests.length);
+      res.json({
+        message: "My contests fetch success",
+        data: contests,
+      });
+    } else {
+      console.log("No contests found for this user");
+      res.status(200).json({
+        message: "No contests found for this user",
+        data: [],
+      });
+    }
+  } catch (err) {
+    console.error("Error fetching user contests:", err);
+    res.status(400).json({
+      message: "Unable to fetch user contests",
+      error: err.message,
     });
   }
 };

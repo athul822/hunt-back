@@ -1,5 +1,6 @@
 const { v4: uuidv4 } = require("uuid");
 const Users = require("../models/users");
+const RefreshToken = require("../models/RefreshToken");
 const jwt = require("jsonwebtoken");
 const usernameGenerator = require("username-generator");
 
@@ -7,6 +8,23 @@ const usernameGenerator = require("username-generator");
 const signToken = (id) => {
   return jwt.sign({ id }, process.env.JWT_SECRET, {
     expiresIn: process.env.JWT_EXPIRES_IN
+  });
+};
+
+// Create and send tokens
+const createSendTokens = async (user, statusCode, res) => {
+  // Generate access token
+  const token = signToken(user._id);
+  
+  // Generate refresh token
+  const refreshToken = await RefreshToken.createToken(user);
+  
+  // Return user info and tokens
+  res.status(statusCode).json({
+    message: "Authentication successful",
+    token,
+    refreshToken: refreshToken.token,
+    user
   });
 };
 
@@ -52,19 +70,53 @@ exports.googleAuthHandler = async (req, res) => {
       });
     }
 
-    // Generate JWT token
-    const token = signToken(user._id);
-
-    // Return user info and token
-    res.status(200).json({
-      message: "Authentication successful",
-      token,
-      user
-    });
+    // Generate and send tokens
+    await createSendTokens(user, 200, res);
   } catch (error) {
     console.error("Google auth error:", error);
     res.status(500).json({
       message: "Authentication failed",
+      error: error.message
+    });
+  }
+};
+
+// Refresh token endpoint
+exports.refreshToken = async (req, res) => {
+  try {
+    const { refreshToken } = req.body;
+    
+    if (!refreshToken) {
+      return res.status(400).json({
+        message: 'Refresh token is required'
+      });
+    }
+    
+    // Find the refresh token in the database
+    const tokenDoc = await RefreshToken.findOne({ token: refreshToken });
+    
+    // Check if token exists and is not expired
+    if (!tokenDoc || tokenDoc.expiresAt < new Date()) {
+      return res.status(401).json({
+        message: 'Invalid or expired refresh token'
+      });
+    }
+    
+    // Find the user
+    const user = await Users.findById(tokenDoc.user);
+    if (!user) {
+      return res.status(401).json({
+        message: 'User not found'
+      });
+    }
+    
+    // Generate new tokens
+    await RefreshToken.deleteOne({ _id: tokenDoc._id }); // Delete old refresh token
+    await createSendTokens(user, 200, res);
+  } catch (error) {
+    console.error("Refresh token error:", error);
+    res.status(500).json({
+      message: "Token refresh failed",
       error: error.message
     });
   }
@@ -110,6 +162,32 @@ exports.verifyToken = async (req, res) => {
     return res.status(401).json({
       isValid: false,
       message: 'Invalid token'
+    });
+  }
+};
+
+// Logout endpoint
+exports.logout = async (req, res) => {
+  try {
+    const { refreshToken } = req.body;
+    
+    if (!refreshToken) {
+      return res.status(400).json({
+        message: 'Refresh token is required'
+      });
+    }
+    
+    // Delete the refresh token
+    await RefreshToken.deleteOne({ token: refreshToken });
+    
+    res.status(200).json({
+      message: 'Logged out successfully'
+    });
+  } catch (error) {
+    console.error("Logout error:", error);
+    res.status(500).json({
+      message: "Logout failed",
+      error: error.message
     });
   }
 }; 

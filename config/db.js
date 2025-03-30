@@ -3,15 +3,16 @@ const mongoose = require("mongoose");
 const connectDB = async () => {
     try {
         await mongoose.connect(process.env.MONGO_URI, {
-            useNewUrlParser: true,
-            useUnifiedTopology: true,
-            // Add connection pooling
+            // These options are no longer needed in newer Mongoose versions
+            // but we'll keep maxPoolSize and timeouts
             maxPoolSize: 10,
-            // Add serverless optimization
             serverSelectionTimeoutMS: 5000,
             socketTimeoutMS: 45000,
         });
-
+        
+        // Set strict query for Mongoose 7+
+        mongoose.set('strictQuery', true);
+        
         console.log("MongoDB is connected");
     } catch (err) {
         console.error(err.message);

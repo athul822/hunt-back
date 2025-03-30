@@ -168,3 +168,68 @@ exports.getMe = async (req, res) => {
     });
   }
 };
+
+// Get all users (admin)
+exports.getAllUsers = async (req, res) => {
+  try {
+    const users = await Users.find();
+    
+    res.status(200).json({
+      message: "Users retrieved successfully",
+      users,
+    });
+  } catch (error) {
+    console.error("Error retrieving users:", error);
+    res.status(500).json({
+      message: "Unable to retrieve users",
+      error: error.message,
+    });
+  }
+};
+
+// Get specific user by ID
+exports.getUser = async (req, res) => {
+  try {
+    const user = await Users.findOne({ id: req.params.id });
+    
+    if (!user) {
+      return res.status(404).json({
+        message: "User not found",
+      });
+    }
+    
+    res.status(200).json({
+      message: "User retrieved successfully",
+      user,
+    });
+  } catch (error) {
+    console.error("Error retrieving user:", error);
+    res.status(500).json({
+      message: "Unable to retrieve user",
+      error: error.message,
+    });
+  }
+};
+
+// Delete user
+exports.deleteUser = async (req, res) => {
+  try {
+    const user = await Users.findOneAndDelete({ id: req.params.id });
+    
+    if (!user) {
+      return res.status(404).json({
+        message: "User not found",
+      });
+    }
+    
+    res.status(200).json({
+      message: "User deleted successfully",
+    });
+  } catch (error) {
+    console.error("Error deleting user:", error);
+    res.status(500).json({
+      message: "Unable to delete user",
+      error: error.message,
+    });
+  }
+};

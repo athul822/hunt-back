@@ -4,25 +4,37 @@ const {
   createUsers,
   userLogin,
   updateUser,
-  getMe
+  getMe,
+  getAllUsers,
+  getUser,
+  deleteUser
 } = require("../controllers/users");
 const { 
   googleAuthHandler, 
-  verifyToken 
+  verifyToken,
+  refreshToken,
+  logout
 } = require("../controllers/auth");
 const { protect, restrictTo } = require("../middleware/auth");
 
-// Public routes
+// Public routes - no authentication required
 router.post("/register", createUsers);
 router.post("/login", userLogin);
 router.post("/google-auth", googleAuthHandler);
 router.post("/verify-token", verifyToken);
+router.post("/refresh-token", refreshToken);
+router.post("/logout", logout);
 
 // Protected routes - require authentication
 router.use(protect);
 
 router.get("/me", getMe);
 router.put("/update/:id", updateUser);
+
+// Admin routes - require admin role
+router.get("/all", restrictTo("admin"), getAllUsers);
+router.get("/:id", restrictTo("admin"), getUser);
+router.delete("/:id", restrictTo("admin"), deleteUser);
 
 // Admin only routes
 // router.use(restrictTo('admin'));
