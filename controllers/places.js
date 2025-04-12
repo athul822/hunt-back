@@ -44,11 +44,104 @@ exports.listContest = async (req, res) => {
   try {
     const query = {};
     const { includeParticipants } = req.query;
-    console.log("Contest fetch query:", query, "Include participants:", includeParticipants);
+    const { filterType, userLocation, page = 1, pageSize = 10, city } = req.body || {};
+    
+    console.log("Contest fetch query:", query, "Include participants:", includeParticipants, "Filter type:", filterType);
+
+    // Get user city from request (assuming user data is attached to request)
+    let userCity = req.user?.city || city || "Thiruvananthapuram"; // Default city if not specified
+    
+    // Apply filter based on filterType
+    if (filterType && filterType !== 'all') {
+      if (filterType === 'popular') {
+        // For popular contests, we'll use the user's city
+        if (userCity) {
+          query['address.city'] = userCity;
+        }
+        
+        // We'll sort by popularity later (ratio of participants to max participants)
+      }
+      else if (filterType === 'starting-soon') {
+        // For contests starting soon, filter by city and time (next 6 hours)
+        if (userCity) {
+          query['address.city'] = userCity;
+        }
+        
+        // Get current date and time
+        const now = new Date();
+        
+        // Get date 6 hours from now
+        const sixHoursLater = new Date(now);
+        sixHoursLater.setHours(sixHoursLater.getHours() + 6);
+        
+        // Format dates as strings in the same format as stored in the database
+        const nowDateStr = now.toISOString().split('T')[0]; // YYYY-MM-DD
+        const laterDateStr = sixHoursLater.toISOString().split('T')[0]; // YYYY-MM-DD
+        
+        // Format times as strings (HH:MM:SS)
+        const nowTimeStr = now.toTimeString().split(' ')[0]; // HH:MM:SS
+        const laterTimeStr = sixHoursLater.toTimeString().split(' ')[0]; // HH:MM:SS
+        
+        console.log("Time range for 'starting-soon' filter:", 
+          `${nowDateStr} ${nowTimeStr} to ${laterDateStr} ${laterTimeStr}`);
+        
+        // Check if the contest starts today or tomorrow (within 6 hours window)
+        if (nowDateStr === laterDateStr) {
+          // Same day - use time range
+          query.startDate = nowDateStr;
+          query.startTime = { $gte: nowTimeStr, $lte: laterTimeStr };
+        } else {
+          // Spans two days
+          query.$or = [
+            { startDate: nowDateStr, startTime: { $gte: nowTimeStr } },
+            { startDate: laterDateStr, startTime: { $lte: laterTimeStr } }
+          ];
+        }
+      }
+      else if (filterType === 'near-you') {
+        // For contests near the user's current location (within 5km radius)
+        // Check if user location is provided
+        if (userLocation && userLocation.latitude && userLocation.longitude) {
+          const { latitude, longitude } = userLocation;
+          const maxDistanceInKm = 5; // 5 km radius
+          
+          console.log(`Searching for contests within ${maxDistanceInKm}km of [${latitude}, ${longitude}]`);
+          
+          // We'll need to fetch all contests and filter manually since we don't have geo query capabilities
+          // in the basic schema. In a production app, you'd use MongoDB's $nearSphere
+        } else {
+          console.log("No user location provided for 'near-you' filter, using city instead");
+          // Fallback to city filter if no location
+          if (userCity) {
+            query['address.city'] = userCity;
+          }
+        }
+      }
+    } else {
+      // For "all" filter, still filter by city to show contests in user's area
+      if (userCity) {
+        query['address.city'] = userCity;
+      }
+      console.log(`Filtering "all" contests by city: ${userCity}`);
+    }
 
     // Always select participants field to get the count, even if we don't populate it
     let contestQuery = Contest.find(query)
-      .select("_id contestName subjectImage difficulty maxParticipants duration prizePool startDate startTime address.display_name creatorId participants");
+      .select("_id contestName subjectImage difficulty maxParticipants duration prizePool startDate startTime address.display_name creatorId participants playZone");
+    
+    // Add pagination for the "all" filter
+    if (filterType === 'all') {
+      // Calculate skip value for pagination (skip = (page - 1) * pageSize)
+      const skip = (parseInt(page) - 1) * parseInt(pageSize);
+      
+      // Add pagination to query
+      contestQuery = contestQuery
+        .skip(skip)
+        .limit(parseInt(pageSize))
+        .sort({ createdAt: -1 }); // Sort by creation date, newest first
+      
+      console.log(`Applying pagination: page ${page}, pageSize ${pageSize}, skip ${skip}`);
+    }
     
     // Conditionally include detailed participant information if the flag is true
     if (includeParticipants === 'true') {
@@ -58,26 +151,93 @@ exports.listContest = async (req, res) => {
       });
     }
 
-    const data = await contestQuery;
+    // Get all contests matching the query
+    let data = await contestQuery;
+
+    // For "near-you" filter with user location, apply distance calculation after fetching data
+    if (filterType === 'near-you' && userLocation && userLocation.latitude && userLocation.longitude) {
+      const { latitude, longitude } = userLocation;
+      const maxDistanceInKm = 5; // 5 km radius
+      
+      // Calculate distance for each contest and filter those within range
+      data = data.filter(contest => {
+        if (!contest.playZone || !contest.playZone.lat || !contest.playZone.lon) {
+          return false;
+        }
+        
+        // Calculate distance using haversine formula
+        const distance = calculateDistance(
+          latitude, 
+          longitude, 
+          contest.playZone.lat, 
+          contest.playZone.lon
+        );
+        
+        // Add distance to contest object for sorting
+        contest._distance = distance;
+        
+        return distance <= maxDistanceInKm;
+      });
+    }
 
     if (data && data.length > 0) {
       // Add a participantCount property for convenience
-      const enhancedData = data.map(contest => {
+      let enhancedData = data.map(contest => {
         const plainContest = contest.toObject();
         plainContest.participantCount = contest.participants ? contest.participants.length : 0;
+        
+        // Calculate popularity score: (current participants / max participants) ratio
+        plainContest.popularityScore = 
+          plainContest.maxParticipants > 0 
+            ? plainContest.participantCount / plainContest.maxParticipants
+            : 0;
+            
+        // Add distance if it was calculated
+        if (contest._distance !== undefined) {
+          plainContest.distance = contest._distance;
+        }
+            
         return plainContest;
       });
+      
+      // Apply sorting based on filter type
+      if (filterType === 'popular') {
+        // Sort by popularity score (descending)
+        enhancedData = enhancedData.sort((a, b) => b.popularityScore - a.popularityScore);
+      } else if (filterType === 'starting-soon') {
+        // Sort by start date and time (ascending)
+        enhancedData = enhancedData.sort((a, b) => {
+          // Create Date objects for comparison
+          const dateA = new Date(`${a.startDate}T${a.startTime}`);
+          const dateB = new Date(`${b.startDate}T${b.startTime}`);
+          return dateA - dateB; // Ascending order (soonest first)
+        });
+      } else if (filterType === 'near-you' && userLocation) {
+        // Sort by distance if available
+        enhancedData = enhancedData.sort((a, b) => (a.distance || 0) - (b.distance || 0));
+      }
+      // For "all" filter, the sorting is already applied in the query (by creation date)
       
       console.log("Contests found:", enhancedData.length);
       res.json({
         message: "Contest fetch Success",
         data: enhancedData,
+        pagination: filterType === 'all' ? {
+          page: parseInt(page),
+          pageSize: parseInt(pageSize),
+          hasMore: enhancedData.length === parseInt(pageSize) // If we got a full page, there might be more
+        } : null
       });
     } else {
       console.log("No contests found for the given query");
       res.status(200).json({
         message: "No contests found",
         data: [],
+        pagination: filterType === 'all' ? {
+          page: parseInt(page),
+          pageSize: parseInt(pageSize),
+          hasMore: false
+        } : null
       });
     }
   } catch (err) {
@@ -422,3 +582,21 @@ exports.joinContest = async (req, res) => {
     session.endSession();
   }
 };
+
+// Helper function to calculate distance between two points using the haversine formula
+function calculateDistance(lat1, lon1, lat2, lon2) {
+  const R = 6371; // Earth's radius in km
+  const dLat = toRad(lat2 - lat1);
+  const dLon = toRad(lon2 - lon1);
+  const a = 
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * 
+    Math.sin(dLon / 2) * Math.sin(dLon / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return R * c; // Distance in km
+}
+
+// Helper function to convert degrees to radians
+function toRad(degrees) {
+  return degrees * Math.PI / 180;
+}
