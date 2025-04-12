@@ -15,6 +15,8 @@ const { helmetConfig, limiter, loginLimiter } = require("./middleware/security")
 // Import routes
 const users = require("./routes/users");
 const places = require("./routes/places");
+const coins = require("./routes/coins");
+const postcodes = require("./routes/postcodes");
 
 
 // Connect to database
@@ -37,13 +39,14 @@ const corsOptions = {
   origin: ["https://k-tourism.netlify.app", "http://localhost:8000", "capacitor://localhost", "ionic://localhost"],
   methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"], 
   credentials: true,
-  allowedHeaders: ['Content-Type', 'Authorization', 'Accept', 'Origin', 'X-Requested-With']
+  allowedHeaders: ['Content-Type', 'Authorization', 'Accept', 'Origin', 'X-Requested-With', 'X-CSRF-Token']
 };
 app.use(cors(corsOptions));
 
 // Apply specific rate limiters to sensitive routes
 app.use("/api/user/login", loginLimiter);
 app.use("/api/user/google-auth", loginLimiter);
+app.use("/api/coins/recharge", loginLimiter);
 
 // Basic route
 app.get("/", (req, res) => res.send("server is active"));
@@ -51,6 +54,8 @@ app.get("/", (req, res) => res.send("server is active"));
 // API routes
 app.use("/api/user", users);
 app.use("/api/places", places);
+app.use("/api/coins", coins);
+app.use("/api/postcodes", postcodes);
 
 
 // Global error handler

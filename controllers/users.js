@@ -154,11 +154,27 @@ exports.updateUser = async (req, res) => {
 // Get current user profile
 exports.getMe = async (req, res) => {
   try {
-    const user = await Users.findById(req.user._id);
+    const user = await Users.findById(req.user._id)
+      .populate({
+        path: 'huntsCreated',
+        select: 'contestName subjectImage difficulty maxParticipants duration prizePool startDate startTime address.display_name'
+      })
+      .populate('coinTransactions');
+
+    // Format the response data
+    const formattedUser = {
+      ...user.toObject(),
+      huntingProgress: {
+        totalHunts: user.totalHuntsCreated,
+        successfulHunts: user.successfulHunts,
+        stats: user.huntingStats,
+        recentHunts: user.huntsCreated.slice(0, 5) // Get last 5 hunts
+      }
+    };
 
     res.status(200).json({
       message: "User profile retrieved successfully",
-      user,
+      user: formattedUser
     });
   } catch (error) {
     console.error("Error retrieving user profile:", error);

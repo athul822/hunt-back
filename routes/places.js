@@ -10,7 +10,8 @@ const {
   createContest,
   listContestById,
   listContest,
-  getMyContests
+  getMyContests,
+  joinContest
 } = require("../controllers/places");
 
 // Public routes - no authentication required
@@ -22,12 +23,13 @@ router.post("/getPlaceByDistrict", getPlaceByDistrict);
 router.use(protect);
 
 // User authenticated routes
-router.post("/register", createPlaces);
+// router.post("/register", createPlaces);
 router.post("/createContest", createContest);
 router.post("/list", listContest);
 router.post("/listContest", listContest);
 router.post("/listContestById", listContestById);
 router.get("/myContests", getMyContests);
+router.post("/joinContest", joinContest);
 
 // Admin only routes
 router.use(restrictTo('admin'));

@@ -59,6 +59,58 @@ const UsersSchema = new mongoose.Schema(
     termsAccepted: {
       type: Boolean,
       default: false,
+    },
+    coinBalance: {
+      type: Number,
+      default: 0,
+      min: 0
+    },
+    coinTransactions: [{
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'CoinTransaction'
+    }],
+    // New fields for hunt tracking
+    huntsCreated: [{
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'contest'
+    }],
+    huntsParticipated: [{
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'contest'
+    }],
+    totalHuntsCreated: {
+      type: Number,
+      default: 0
+    },
+    successfulHunts: {
+      type: Number,
+      default: 0
+    },
+    huntingStats: {
+      type: {
+        winRate: {
+          type: Number,
+          default: 0
+        },
+        averageCompletionTime: {
+          type: Number,
+          default: 0
+        },
+        totalParticipations: {
+          type: Number,
+          default: 0
+        },
+        rank: {
+          type: String,
+          default: 'Beginner'
+        }
+      },
+      default: {
+        winRate: 0,
+        averageCompletionTime: 0,
+        totalParticipations: 0,
+        rank: 'Beginner'
+      }
     }
   },
   { timestamps: true }

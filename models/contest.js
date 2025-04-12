@@ -11,6 +11,10 @@ const ContestSchema = new mongoose.Schema(
       ref: 'Users',
       required: true
     },
+    participants: [{
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'users'
+    }],
     subjectImage: {
       type: String,
       default: "",
