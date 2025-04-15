@@ -11,7 +11,12 @@ const {
   listContestById,
   listContest,
   getMyContests,
-  joinContest
+  joinContest,
+  completeTreasure,
+  userCompletedTreasures,
+  contestLeaderboard,
+  userContestCompletedTreasures,
+  completeContest
 } = require("../controllers/places");
 
 // Public routes - no authentication required
@@ -30,6 +35,13 @@ router.post("/listContest", listContest);
 router.post("/listContestById", listContestById);
 router.get("/myContests", getMyContests);
 router.post("/joinContest", joinContest);
+
+// Treasure and contest completion routes
+router.post("/completeTreasure", completeTreasure);
+router.post("/userCompletedTreasures", userCompletedTreasures);
+router.post("/contestLeaderboard", contestLeaderboard);
+router.post("/userContestCompletedTreasures", userContestCompletedTreasures);
+router.post("/completeContest", completeContest);
 
 // Admin only routes
 router.use(restrictTo('admin'));

@@ -125,6 +125,56 @@ const ContestSchema = new mongoose.Schema(
       type: String,
       enum: ['public', 'private'],
       default: 'public'
+    },
+    // AR feature fields
+    arEnabled: {
+      type: Boolean,
+      default: false
+    },
+    arAnchorType: {
+      type: String,
+      enum: ['withAnchor', 'withoutAnchor'],
+      default: 'withAnchor'
+    },
+    arObjectType: {
+      type: String,
+      enum: ['2DText', '3DObjects'],
+      default: '2DText'
+    },
+    // End condition for the contest
+    endCondition: {
+      type: String,
+      enum: ['treasureFound', 'fixedTime'],
+      default: 'treasureFound'
+    },
+    // AR data for rendering AR experience
+    arData: {
+      type: {
+        type: String,
+        enum: ['anchor', 'noAnchor'],
+        default: 'anchor'
+      },
+      render: {
+        type: String,
+        enum: ['2d', '3d'],
+        default: '2d'
+      },
+      anchor: {
+        type: String,
+        default: ''
+      },
+      model: {
+        type: String,
+        default: ''
+      },
+      position: {
+        type: Object,
+        default: null
+      },
+      rotation: {
+        type: Object,
+        default: null
+      }
     }
   },
   { timestamps: true }

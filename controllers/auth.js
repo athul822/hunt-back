@@ -45,7 +45,7 @@ exports.googleAuthHandler = async (req, res) => {
         email,
         googleId,
         firstName: firstName || '',
-        lastName: lastName || '',
+        lastName: lastName || firstName || 'User',
         profileImage: profileImage || '',
         role: 'user',
         username: generatedUsername

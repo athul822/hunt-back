@@ -12,7 +12,6 @@ const UsersSchema = new mongoose.Schema(
     },
     lastName: {
       type: String,
-      required: true,
     },
     email: {
       type: String,
@@ -86,6 +85,42 @@ const UsersSchema = new mongoose.Schema(
       type: Number,
       default: 0
     },
+    // Track completed treasures
+    completedTreasures: [{
+      treasureId: {
+        type: mongoose.Schema.Types.ObjectId,
+        required: true
+      },
+      contestId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'contest',
+        required: true
+      },
+      completedAt: {
+        type: Date,
+        default: Date.now
+      }
+    }],
+    // Track completed contests
+    completedContests: [{
+      contestId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'contest',
+        required: true
+      },
+      completedAt: {
+        type: Date,
+        default: Date.now
+      },
+      position: {
+        type: Number,
+        default: null
+      },
+      reward: {
+        type: Number,
+        default: 0
+      }
+    }],
     huntingStats: {
       type: {
         winRate: {

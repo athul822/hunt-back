@@ -406,6 +406,16 @@ exports.createContest = async (req, res) => {
     // Add creator ID from authenticated user
     req.body.creatorId = req.user._id;
     
+    // Handle AR image upload if needed
+    if (req.body.arData && req.body.arData.anchor && req.body.arData.anchor.startsWith('file://')) {
+      console.log('AR anchor image is a local file path, might need to upload it to a server');
+      // In a production app, you would upload this file to a remote server
+      // and update the path to be a URL instead of a local file path
+      
+      // For now, just log the issue and leave the local path as is
+      console.log('Warning: Using local file path for AR anchor:', req.body.arData.anchor);
+    }
+
     // Create new contest
     const newContest = await Contest.create(req.body);
 
@@ -600,3 +610,338 @@ function calculateDistance(lat1, lon1, lat2, lon2) {
 function toRad(degrees) {
   return degrees * Math.PI / 180;
 }
+
+// Controller for marking a treasure as completed by a user
+exports.completeTreasure = async (req, res) => {
+  try {
+    const { userId, treasureId, contestId, completedAt } = req.body;
+
+    // Validate required fields
+    if (!userId || !treasureId || !contestId) {
+      return res.status(400).json({
+        message: "Missing required fields: userId, treasureId, and contestId are required"
+      });
+    }
+
+    // Find the user
+    const user = await Users.findById(userId);
+    if (!user) {
+      return res.status(404).json({
+        message: "User not found"
+      });
+    }
+
+    // Find the contest
+    const contest = await Contest.findById(contestId);
+    if (!contest) {
+      return res.status(404).json({
+        message: "Contest not found"
+      });
+    }
+
+    // Check if the treasure exists in the contest
+    const treasureExists = contest.treasures.some(t => t._id.toString() === treasureId);
+    if (!treasureExists) {
+      return res.status(404).json({
+        message: "Treasure not found in the specified contest"
+      });
+    }
+
+    // Check if the user has already completed this treasure
+    if (!user.completedTreasures) {
+      user.completedTreasures = [];
+    }
+
+    const alreadyCompleted = user.completedTreasures.some(
+      t => t.treasureId.toString() === treasureId && t.contestId.toString() === contestId
+    );
+
+    if (alreadyCompleted) {
+      return res.status(200).json({
+        message: "Treasure was already completed by this user",
+        success: true,
+        alreadyCompleted: true
+      });
+    }
+
+    // Add the treasure to the user's completed treasures
+    user.completedTreasures.push({
+      treasureId,
+      contestId,
+      completedAt: completedAt || new Date()
+    });
+
+    // Update user's successful hunts count
+    if (!user.huntingStats) {
+      user.huntingStats = {};
+    }
+    
+    user.successfulHunts = (user.successfulHunts || 0) + 1;
+
+    // Save the updated user
+    await user.save();
+
+    // Return success response
+    res.status(200).json({
+      message: "Treasure marked as completed successfully",
+      success: true
+    });
+  } catch (error) {
+    console.error("Error completing treasure:", error);
+    res.status(500).json({
+      message: "Unable to complete treasure",
+      error: error.message
+    });
+  }
+};
+
+// Get all treasures completed by a user
+exports.userCompletedTreasures = async (req, res) => {
+  try {
+    const { userId } = req.body;
+
+    // Validate required fields
+    if (!userId) {
+      return res.status(400).json({
+        message: "Missing required field: userId is required"
+      });
+    }
+
+    // Find the user and get their completed treasures
+    const user = await Users.findById(userId);
+    if (!user) {
+      return res.status(404).json({
+        message: "User not found"
+      });
+    }
+
+    // Return the completed treasures
+    res.status(200).json({
+      message: "User's completed treasures retrieved successfully",
+      data: user.completedTreasures || []
+    });
+  } catch (error) {
+    console.error("Error getting user's completed treasures:", error);
+    res.status(500).json({
+      message: "Unable to get user's completed treasures",
+      error: error.message
+    });
+  }
+};
+
+// Get treasures completed by a user for a specific contest
+exports.userContestCompletedTreasures = async (req, res) => {
+  try {
+    const { userId, contestId } = req.body;
+
+    // Validate required fields
+    if (!userId || !contestId) {
+      return res.status(400).json({
+        message: "Missing required fields: userId and contestId are required"
+      });
+    }
+
+    // Find the user
+    const user = await Users.findById(userId);
+    if (!user) {
+      return res.status(404).json({
+        message: "User not found"
+      });
+    }
+
+    // Filter completed treasures for the specified contest
+    const contestCompletedTreasures = (user.completedTreasures || []).filter(
+      t => t.contestId.toString() === contestId
+    );
+
+    // Return the contest's completed treasures
+    res.status(200).json({
+      message: "User's completed treasures for the contest retrieved successfully",
+      data: contestCompletedTreasures
+    });
+  } catch (error) {
+    console.error("Error getting user's completed treasures for the contest:", error);
+    res.status(500).json({
+      message: "Unable to get user's completed treasures for the contest",
+      error: error.message
+    });
+  }
+};
+
+// Get contest leaderboard based on completed treasures
+exports.contestLeaderboard = async (req, res) => {
+  try {
+    const { contestId } = req.body;
+
+    // Validate required fields
+    if (!contestId) {
+      return res.status(400).json({
+        message: "Missing required field: contestId is required"
+      });
+    }
+
+    // Find the contest
+    const contest = await Contest.findById(contestId);
+    if (!contest) {
+      return res.status(404).json({
+        message: "Contest not found"
+      });
+    }
+
+    // Get all users who have completed treasures for this contest
+    const users = await Users.find({
+      'completedTreasures.contestId': mongoose.Types.ObjectId(contestId)
+    }).select('_id firstName lastName username profileImage completedTreasures');
+
+    // Calculate leaderboard standings
+    const leaderboard = users.map(user => {
+      // Filter completed treasures for this contest
+      const contestTreasures = (user.completedTreasures || []).filter(
+        t => t.contestId.toString() === contestId
+      );
+
+      // Calculate the user's score (number of treasures completed)
+      const score = contestTreasures.length;
+
+      // Calculate completion time (time between first and last treasure)
+      let completionTime = null;
+      if (contestTreasures.length > 0) {
+        const times = contestTreasures.map(t => new Date(t.completedAt).getTime());
+        const firstTime = Math.min(...times);
+        const lastTime = Math.max(...times);
+        completionTime = lastTime - firstTime; // milliseconds
+      }
+
+      return {
+        userId: user._id,
+        name: `${user.firstName} ${user.lastName}`,
+        username: user.username,
+        profileImage: user.profileImage,
+        treasuresCompleted: score,
+        completionTime: completionTime,
+        contestId: contestId
+      };
+    });
+
+    // Sort leaderboard by treasures completed (desc) and then completion time (asc)
+    leaderboard.sort((a, b) => {
+      if (b.treasuresCompleted !== a.treasuresCompleted) {
+        return b.treasuresCompleted - a.treasuresCompleted;
+      }
+      // If same number of treasures, the faster time wins
+      if (a.completionTime && b.completionTime) {
+        return a.completionTime - b.completionTime;
+      }
+      return 0;
+    });
+
+    // Add rank to each entry
+    leaderboard.forEach((entry, index) => {
+      entry.rank = index + 1;
+    });
+
+    // Return the leaderboard
+    res.status(200).json({
+      message: "Contest leaderboard retrieved successfully",
+      data: leaderboard
+    });
+  } catch (error) {
+    console.error("Error getting contest leaderboard:", error);
+    res.status(500).json({
+      message: "Unable to get contest leaderboard",
+      error: error.message
+    });
+  }
+};
+
+// Mark a contest as completed by a user
+exports.completeContest = async (req, res) => {
+  try {
+    const { userId, contestId, completedAt } = req.body;
+
+    // Validate required fields
+    if (!userId || !contestId) {
+      return res.status(400).json({
+        message: "Missing required fields: userId and contestId are required"
+      });
+    }
+
+    // Find the user
+    const user = await Users.findById(userId);
+    if (!user) {
+      return res.status(404).json({
+        message: "User not found"
+      });
+    }
+
+    // Find the contest
+    const contest = await Contest.findById(contestId);
+    if (!contest) {
+      return res.status(404).json({
+        message: "Contest not found"
+      });
+    }
+
+    // Check if the user has already completed the contest
+    if (!user.completedContests) {
+      user.completedContests = [];
+    }
+
+    const alreadyCompleted = user.completedContests.some(
+      c => c.contestId.toString() === contestId
+    );
+
+    if (alreadyCompleted) {
+      return res.status(200).json({
+        message: "Contest was already completed by this user",
+        success: true,
+        alreadyCompleted: true
+      });
+    }
+
+    // Add the contest to the user's completed contests
+    user.completedContests.push({
+      contestId,
+      completedAt: completedAt || new Date()
+    });
+
+    // Award coins or other rewards if applicable
+    if (contest.prizePool > 0) {
+      // Create a coin transaction
+      const coinTransaction = new CoinTransaction({
+        userId: user._id,
+        amount: contest.prizePool,
+        type: 'CONTEST_COMPLETION',
+        description: `Reward for completing contest: ${contest.contestName}`,
+        contestId: contest._id
+      });
+
+      await coinTransaction.save();
+
+      // Update user's coin balance
+      user.coinBalance = (user.coinBalance || 0) + contest.prizePool;
+
+      // Add transaction reference to user
+      if (!user.coinTransactions) {
+        user.coinTransactions = [];
+      }
+      user.coinTransactions.push(coinTransaction._id);
+    }
+
+    // Save the updated user
+    await user.save();
+
+    // Return success response
+    res.status(200).json({
+      message: "Contest marked as completed successfully",
+      success: true,
+      coinsAwarded: contest.prizePool || 0
+    });
+  } catch (error) {
+    console.error("Error completing contest:", error);
+    res.status(500).json({
+      message: "Unable to complete contest",
+      error: error.message
+    });
+  }
+};
