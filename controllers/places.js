@@ -42,7 +42,7 @@ exports.createPlaces = async (req, res) => {
 
 exports.listContest = async (req, res) => {
   try {
-    const query = {};
+    const query = { status: 'active' };
     const { includeParticipants } = req.query;
     const { filterType, userLocation, page = 1, pageSize = 10, city } = req.body || {};
     
@@ -273,6 +273,11 @@ exports.listContestById = async (req, res) => {
       const plainData = data.toObject();
       plainData.participantCount = data.participants ? data.participants.length : 0;
       
+      // Remove treasureLocation from response
+      if (plainData.treasureLocation) {
+        delete plainData.treasureLocation;
+      }
+      
       console.log("Contest found:", data._id, "Participants:", plainData.participantCount);
       res.json({
         message: "Contest fetch Success",
@@ -405,6 +410,9 @@ exports.createContest = async (req, res) => {
     
     // Add creator ID from authenticated user
     req.body.creatorId = req.user._id;
+    
+    // Set status as active by default
+    req.body.status = 'active';
     
     // Handle AR image upload if needed
     if (req.body.arData && req.body.arData.anchor && req.body.arData.anchor.startsWith('file://')) {
@@ -622,6 +630,20 @@ exports.completeTreasure = async (req, res) => {
         message: "Missing required fields: userId, treasureId, and contestId are required"
       });
     }
+    
+    // Validate ObjectIDs format to avoid CastError
+    if (!mongoose.Types.ObjectId.isValid(userId) || 
+        !mongoose.Types.ObjectId.isValid(treasureId) || 
+        !mongoose.Types.ObjectId.isValid(contestId)) {
+      return res.status(400).json({
+        message: "Invalid ID format: userId, treasureId, or contestId is not a valid ObjectId",
+        invalidIds: {
+          userId: !mongoose.Types.ObjectId.isValid(userId),
+          treasureId: !mongoose.Types.ObjectId.isValid(treasureId),
+          contestId: !mongoose.Types.ObjectId.isValid(contestId)
+        }
+      });
+    }
 
     // Find the user
     const user = await Users.findById(userId);
@@ -638,12 +660,90 @@ exports.completeTreasure = async (req, res) => {
         message: "Contest not found"
       });
     }
+    
+    console.log(`CompleteTreasure - Current contest status: ${contest.status}`);
 
     // Check if the treasure exists in the contest
-    const treasureExists = contest.treasures.some(t => t._id.toString() === treasureId);
+    // If contest doesn't have treasures array, treat the contest itself as the treasure
+    let treasureExists = false;
+    if (contest.treasures && Array.isArray(contest.treasures)) {
+      treasureExists = contest.treasures.some(t => t._id.toString() === treasureId);
+    } else {
+      // If there's no treasures array, the treasure might be the contest itself
+      treasureExists = contestId === treasureId;
+    }
+    
     if (!treasureExists) {
-      return res.status(404).json({
-        message: "Treasure not found in the specified contest"
+      console.warn(`Warning: Treasure ${treasureId} not explicitly found in contest ${contestId}, but proceeding anyway`);
+      // We proceed anyway since it might be an AR experience where the contest itself is the treasure
+    }
+
+    // Check if the contest is already completed by someone else
+    if (contest.status === 'completed') {
+      // Get the timestamp of when it was found
+      let completionTime = "another user";
+      if (contest.completedUsers && contest.completedUsers.length > 0) {
+        const firstCompleter = contest.completedUsers[0];
+        const completionDate = new Date(firstCompleter.completedAt);
+        completionTime = completionDate.toLocaleString();
+      }
+      
+      // Check if this same user already completed it
+      const alreadyCompletedByUser = user.completedTreasures && user.completedTreasures.some(
+        t => (t.treasureId.toString() === treasureId || t.contestId.toString() === contestId)
+      );
+      
+      if (!alreadyCompletedByUser) {
+        // Add this user to the completedUsers of the contest if they haven't completed it yet
+        // Even though they weren't first, we still record their find
+        const completedUserEntry = {
+          userId: userId,
+          completedAt: completedAt || new Date(),
+          timeToComplete: 0
+        };
+        
+        await Contest.findByIdAndUpdate(
+          contestId,
+          {
+            $addToSet: { completedUsers: completedUserEntry }
+          }
+        );
+        
+        // Add to user's completed treasures and contests
+        if (!user.completedTreasures) {
+          user.completedTreasures = [];
+        }
+        
+        user.completedTreasures.push({
+          treasureId,
+          contestId,
+          completedAt: completedAt || new Date()
+        });
+        
+        // Update user's successful hunts count
+        if (!user.huntingStats) {
+          user.huntingStats = {};
+        }
+        
+        user.successfulHunts = (user.successfulHunts || 0) + 1;
+        
+        // Add contest to user's completed contests if not already there
+        if (!user.completedContests) {
+          user.completedContests = [];
+        }
+        
+        if (!user.completedContests.includes(contestId)) {
+          user.completedContests.push(contestId);
+        }
+        
+        await user.save();
+      }
+      
+      return res.status(200).json({
+        message: `This treasure was already found at ${completionTime}`,
+        success: true,
+        alreadyCompleted: true,
+        updatedContest: contest
       });
     }
 
@@ -652,11 +752,11 @@ exports.completeTreasure = async (req, res) => {
       user.completedTreasures = [];
     }
 
-    const alreadyCompleted = user.completedTreasures.some(
+    const treasureAlreadyCompleted = user.completedTreasures.some(
       t => t.treasureId.toString() === treasureId && t.contestId.toString() === contestId
     );
 
-    if (alreadyCompleted) {
+    if (treasureAlreadyCompleted) {
       return res.status(200).json({
         message: "Treasure was already completed by this user",
         success: true,
@@ -677,14 +777,91 @@ exports.completeTreasure = async (req, res) => {
     }
     
     user.successfulHunts = (user.successfulHunts || 0) + 1;
+    
+    // Add contest to user's completed contests if not already there
+    if (!user.completedContests) {
+      user.completedContests = [];
+    }
+    
+    if (!user.completedContests.includes(contestId)) {
+      user.completedContests.push(contestId);
+    }
 
     // Save the updated user
+    await user.save();
+    
+    // Get current timestamp
+    const now = new Date();
+    
+    // Create a new completed user entry for the contest
+    const completedUserEntry = {
+      userId: userId,
+      completedAt: completedAt || now,
+      timeToComplete: 0
+    };
+    
+    // Initialize completedUsers array if it doesn't exist
+    if (!contest.completedUsers) {
+      contest.completedUsers = [];
+    }
+    
+    // Initialize winners array if it doesn't exist
+    if (!contest.winners) {
+      contest.winners = [];
+    }
+    
+    // Update contest status to completed
+    const updatedContest = await Contest.findByIdAndUpdate(
+      contestId,
+      {
+        $addToSet: { 
+          completedUsers: completedUserEntry,
+          winners: userId
+        },
+        status: 'completed'
+      },
+      { new: true }
+    );
+
+    // Mark the user as a winner in their completedContests array
+    // Find and update their completedContests entry for this contest
+    const completedContestIndex = user.completedContests ? 
+      user.completedContests.findIndex(c => 
+        c.contestId && c.contestId.toString() === contestId
+      ) : -1;
+      
+    if (completedContestIndex >= 0) {
+      // Update existing entry
+      user.completedContests[completedContestIndex].position = 1; // Position 1 means winner
+      user.completedContests[completedContestIndex].reward = contest.prizePool || 0;
+    } else {
+      // Create a new entry with winner position
+      if (!user.completedContests) {
+        user.completedContests = [];
+      }
+      
+      user.completedContests.push({
+        contestId,
+        completedAt: completedAt || now,
+        position: 1, // Position 1 means winner
+        reward: contest.prizePool || 0
+      });
+    }
+    
+    // Update huntingStats to reflect the win
+    if (!user.huntingStats) {
+      user.huntingStats = {};
+    }
+    
+    // Save the updated user with winner status
     await user.save();
 
     // Return success response
     res.status(200).json({
-      message: "Treasure marked as completed successfully",
-      success: true
+      message: "Treasure found and marked as completed successfully!",
+      success: true,
+      updatedContest,
+      updatedUser: user // Return the updated user document for client-side state updates
     });
   } catch (error) {
     console.error("Error completing treasure:", error);
@@ -941,6 +1118,70 @@ exports.completeContest = async (req, res) => {
     console.error("Error completing contest:", error);
     res.status(500).json({
       message: "Unable to complete contest",
+      error: error.message
+    });
+  }
+};
+
+// Get contest treasure location by ID - with auth checks
+exports.getContestTreasureLocation = async (req, res) => {
+  try {
+    const { contestId } = req.body;
+    const userId = req.user._id;
+
+    // Validate required fields
+    if (!contestId) {
+      return res.status(400).json({
+        message: "Missing required field: contestId is required"
+      });
+    }
+
+    // Find the contest
+    const contest = await Contest.findById(contestId);
+    if (!contest) {
+      return res.status(404).json({
+        message: "Contest not found"
+      });
+    }
+
+    // Check contest status - must be active
+    if (contest.status !== 'active') {
+      return res.status(403).json({
+        message: "This contest is no longer active",
+        status: contest.status
+      });
+    }
+
+    // Check if user is a participant in this contest
+    const isParticipant = contest.participants && 
+      contest.participants.some(participantId => 
+        participantId.toString() === userId.toString()
+      );
+
+    if (!isParticipant) {
+      return res.status(403).json({
+        message: "You are not authorized to access this contest",
+        status: "unauthorized"
+      });
+    }
+
+    // User is authorized and contest is active, return treasureLocation
+    if (!contest.treasureLocation) {
+      return res.status(404).json({
+        message: "Treasure location not found for this contest"
+      });
+    }
+
+    res.status(200).json({
+      message: "Treasure location retrieved successfully",
+      data: {
+        treasureLocation: contest.treasureLocation
+      }
+    });
+  } catch (error) {
+    console.error("Error getting contest treasure location:", error);
+    res.status(500).json({
+      message: "Unable to get contest treasure location",
       error: error.message
     });
   }

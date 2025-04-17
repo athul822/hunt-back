@@ -16,7 +16,8 @@ const {
   userCompletedTreasures,
   contestLeaderboard,
   userContestCompletedTreasures,
-  completeContest
+  completeContest,
+  getContestTreasureLocation
 } = require("../controllers/places");
 
 // Public routes - no authentication required
@@ -42,6 +43,7 @@ router.post("/userCompletedTreasures", userCompletedTreasures);
 router.post("/contestLeaderboard", contestLeaderboard);
 router.post("/userContestCompletedTreasures", userContestCompletedTreasures);
 router.post("/completeContest", completeContest);
+router.post("/getContestTreasureLocation", getContestTreasureLocation);
 
 // Admin only routes
 router.use(restrictTo('admin'));

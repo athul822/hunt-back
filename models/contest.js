@@ -71,6 +71,11 @@ const ContestSchema = new mongoose.Schema(
       state: String,
       country: String,
     },
+    // Instructions to find the treasure
+    instructions: {
+      type: String,
+      default: "",
+    },
     hint_image_1: {
       type: String,
       default: "",
@@ -147,6 +152,33 @@ const ContestSchema = new mongoose.Schema(
       enum: ['treasureFound', 'fixedTime'],
       default: 'treasureFound'
     },
+    // Track contest status
+    status: {
+      type: String,
+      enum: ['active', 'completed', 'cancelled'],
+      default: 'active'
+    },
+    // Track users who completed the contest
+    completedUsers: [{
+      userId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Users'
+      },
+      completedAt: {
+        type: Date,
+        default: Date.now
+      },
+      // Optional additional fields for analytics
+      timeToComplete: {
+        type: Number, // Time in milliseconds
+        default: 0
+      }
+    }],
+    // Add a field to track the winner(s)
+    winners: [{
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Users'
+    }],
     // AR data for rendering AR experience
     arData: {
       type: {
