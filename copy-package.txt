@@ -1,3 +1,20 @@
+Project Structure:
+
+[ROOT] hunt-back
++-- [DIR]  ..
+    +-- [DIR]  c:
+        +-- [DIR]  Git
+            +-- [DIR]  hunt
+                +-- [DIR]  hunt-back
+                    +-- [DIR]  models
+                        |-- [FILE] contest.js
+                        |-- [FILE] payment.js
+                        |-- [FILE] places.js
+                        +-- [FILE] users.js
+
+--------------------------------------------------------------------------------
+
+--- FILE: ../c:/Git/hunt/hunt-back/models/contest.js ---
 // models/contest.js (UPDATED)
 const mongoose = require("mongoose");
 
@@ -290,3 +307,266 @@ ContestSchema.pre("save", function (next) {
 
 const Contest = mongoose.model("contest", ContestSchema);
 module.exports = Contest;
+
+--- END FILE: ../c:/Git/hunt/hunt-back/models/contest.js ---
+
+--- FILE: ../c:/Git/hunt/hunt-back/models/payment.js ---
+const mongoose = require('mongoose');
+
+const paymentSchema = new mongoose.Schema({
+  // Order and Transaction IDs
+  orderId: {
+    type: String,
+    required: true,
+    unique: true,
+    index: true
+  },
+  merchantTransactionId: {
+    type: String,
+    required: true,
+    unique: true,
+    index: true
+  },
+  phonepeTransactionId: {
+    type: String,
+    default: null,
+    index: true
+  },
+  
+  // Payment Details
+  amount: {
+    type: Number,
+    required: true,
+    min: 1
+  },
+  status: {
+    type: String,
+    enum: ['PENDING', 'SUCCESS', 'FAILURE', 'CANCELLED'],
+    default: 'PENDING',
+    index: true
+  },
+  paymentMethod: {
+    type: String,
+    default: null
+  },
+  
+  // User Information
+  userId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User',
+    required: true,
+    index: true
+  },
+  customerName: {
+    type: String,
+    default: null
+  },
+  customerPhone: {
+    type: String,
+    default: null
+  },
+  customerEmail: {
+    type: String,
+    default: null
+  },
+  
+  // Product Information
+  productInfo: {
+    type: String,
+    default: 'Payment'
+  },
+  
+  // PhonePe Response Data
+  paymentDetails: {
+    type: mongoose.Schema.Types.Mixed,
+    default: null
+  },
+  
+  // Timestamps
+  createdAt: {
+    type: Date,
+    default: Date.now,
+    index: true
+  },
+  updatedAt: {
+    type: Date,
+    default: Date.now
+  }
+}, {
+  timestamps: true
+});
+
+// Indexes for better query performance
+paymentSchema.index({ userId: 1, createdAt: -1 });
+paymentSchema.index({ status: 1, createdAt: -1 });
+paymentSchema.index({ merchantTransactionId: 1, status: 1 });
+
+// Pre-save middleware to update updatedAt
+paymentSchema.pre('save', function(next) {
+  this.updatedAt = new Date();
+  next();
+});
+
+// Instance methods
+paymentSchema.methods.isCompleted = function() {
+  return this.status === 'SUCCESS';
+};
+
+paymentSchema.methods.isPending = function() {
+  return this.status === 'PENDING';
+};
+
+paymentSchema.methods.isFailed = function() {
+  return this.status === 'FAILURE' || this.status === 'CANCELLED';
+};
+
+// Static methods
+paymentSchema.statics.findByUserId = function(userId, options = {}) {
+  const { page = 1, limit = 10, status } = options;
+  const query = { userId };
+  
+  if (status) {
+    query.status = status;
+  }
+  
+  return this.find(query)
+    .sort({ createdAt: -1 })
+    .limit(limit * 1)
+    .skip((page - 1) * limit);
+};
+
+paymentSchema.statics.findPendingPayments = function(olderThanMinutes = 30) {
+  const cutoffTime = new Date(Date.now() - olderThanMinutes * 60 * 1000);
+  return this.find({
+    status: 'PENDING',
+    createdAt: { $lt: cutoffTime }
+  });
+};
+
+module.exports = mongoose.model('Payment', paymentSchema);
+--- END FILE: ../c:/Git/hunt/hunt-back/models/payment.js ---
+
+--- FILE: ../c:/Git/hunt/hunt-back/models/places.js ---
+const mongoose = require("mongoose");
+
+// Define the schema for a Place with coordinates
+const PlaceSchema = new mongoose.Schema(
+  {
+    id: {
+      type: String, // Define the type of the 'id' field
+      required: true, // Mark the 'id' field as required
+      unique: true, // Ensure the 'id' field is unique
+    },
+    coords: {
+      speed: {
+        type: Number,
+        default: 0,
+      },
+      heading: {
+        type: Number,
+        default: 0,
+      },
+      altitude: {
+        type: Number,
+        default: 0,
+      },
+      accuracy: {
+        type: Number,
+        required: true,
+      },
+      longitude: {
+        type: Number,
+        required: true,
+      },
+      latitude: {
+        type: Number,
+        required: true,
+      },
+    },
+    zone: {
+      type: Array,
+    },
+  },
+  { timestamps: true } // Automatically add createdAt and updatedAt fields
+);
+
+// Create the model from the schema
+const Places = mongoose.model("Places", PlaceSchema);
+
+// Export the model for use in other parts of the application
+module.exports = Places;
+
+--- END FILE: ../c:/Git/hunt/hunt-back/models/places.js ---
+
+--- FILE: ../c:/Git/hunt/hunt-back/models/users.js ---
+const mongoose = require("mongoose");
+
+const UsersSchema = new mongoose.Schema(
+  {
+    id: {
+      type: String,
+      required: true,
+      unique: true,
+    },
+    firstName: {
+      type: String,
+    },
+    lastName: {
+      type: String,
+      required: true,
+    },
+    email: {
+      type: String,
+      required: true,
+      unique: true,
+    },
+    googleId: {
+      type: String,
+      unique: true,
+      sparse: true // Allows multiple documents where googleId is not set
+    },
+    role: {
+      type: String,
+      enum: ['user', 'admin'],
+      default: 'user'
+    },
+    username: {
+      type: String,
+    },
+    gender: {
+      type: String,
+    },
+    dob: {
+      type: Date,
+    },
+    address: {
+      type: String,
+    },
+    city: {
+      type: String,
+    },
+    state: {
+      type: String,
+    },
+    zip: {
+      type: String,
+    },
+    mobile: {
+      type: String,
+    },
+    profileImage: {
+      type: String,
+    },
+    termsAccepted: {
+      type: Boolean,
+      default: false,
+    }
+  },
+  { timestamps: true }
+);
+
+const Users = mongoose.model("users", UsersSchema);
+
+module.exports = Users;
+
+--- END FILE: ../c:/Git/hunt/hunt-back/models/users.js ---

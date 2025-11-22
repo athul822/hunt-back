@@ -75,7 +75,7 @@ exports.initiatePayment = async (req, res) => {
       merchantTransactionId,
       merchantUserId: userId,
       amount: Math.round(amount * 100), // Convert to paise and ensure integer
-      redirectUrl: `https://www.iorbit-tech.com/api/payment/callback`,
+      redirectUrl: `https://api.phonepe.com/apis/hermes/pg/v1/pay`,
       redirectMode: 'POST',
       callbackUrl: `https://www.iorbit-tech.com/api/payment/webhook`,
       paymentInstrument: {

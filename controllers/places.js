@@ -42,7 +42,9 @@ exports.listContest = async (req, res) => {
   console.log("Contest fetch query:", query);
 
   Contest.find(query)
-    .select("_id contestName subjectImage difficulty maxParticipants duration prizePool startDate startTime address.display_name")
+    .select(
+      "_id contestName subjectImage difficulty maxParticipants duration prizePool startDate startTime address.display_name"
+    )
     .then((data) => {
       if (data && data.length > 0) {
         console.log("Contests found:", data.length);
@@ -198,21 +200,148 @@ exports.searchPlaceByKeyword = async (req, res) => {
   }
 };
 
+// exports.createContest = async (req, res) => {
+//   try {
+//     req.body.id = uuidv4();
+//     console.log(req.body, "body");
+//     // console.log({ newHotel });
+//     // console.log(zone,"zone");
+//     // req.body.zone = zone;
+//     const newContest = await Contest.create(req.body);
+//     // Send success response
+//     res.json({ message: "User registration successful", newContest });
+//   } catch (error) {
+//     // Handle errors
+//     console.error("Error in user registration:", error);
+//     res.status(500).json({
+//       message: "Unable to register new user",
+//       error: error.message,
+//     });
+//   }
+// };
+
+/**
+ * Create Contest - Receives image URLs (already uploaded)
+ * POST /api/places/createContest
+ */
 exports.createContest = async (req, res) => {
   try {
-    req.body.id = uuidv4();
-    console.log(req.body, "body");
-    // console.log({ newHotel });
-    // console.log(zone,"zone");
-    // req.body.zone = zone;
-    const newContest = await Contest.create(req.body);
-    // Send success response
-    res.json({ message: "User registration successful", newContest });
+    const {
+      huntType,
+      entryFee,
+      visibility,
+      useVerifiedLocation,
+      verifiedLocationId,
+      treasureLocation,
+      treasurePhoto, // Already uploaded image URL
+      contextPhotos, // Array of already uploaded image URLs
+      searchRadius,
+      circleCenter,
+      initialClue,
+      proximityClues,
+      verificationMethod,
+      secretCode,
+      arAnchorImage, // Already uploaded image URL
+      arText,
+      calculatedDifficulty,
+      name,
+      description,
+      startImmediately,
+      scheduledDateTime,
+      duration,
+    } = req.body;
+
+    // Validation
+    if (!huntType || !huntType.id) {
+      return res.status(400).json({ message: "Hunt type is required" });
+    }
+
+    if (!treasureLocation) {
+      return res.status(400).json({ message: "Treasure location is required" });
+    }
+
+    if (!treasurePhoto || !treasurePhoto.url) {
+      return res.status(400).json({ message: "Treasure photo is required" });
+    }
+
+    if (!initialClue || initialClue.length < 10) {
+      return res.status(400).json({
+        message: "Initial clue must be at least 10 characters",
+      });
+    }
+
+    if (!name || name.length < 3) {
+      return res.status(400).json({ message: "Contest name is required" });
+    }
+
+    // For AR hunts, validate AR anchor image
+    if (verificationMethod === "ar" && (!arAnchorImage || !arAnchorImage.url)) {
+      return res.status(400).json({
+        message: "AR anchor image is required for AR hunts",
+      });
+    }
+
+    // Get creator ID from authenticated user
+    const creatorId = req.user.id;
+    const contestId = uuidv4();
+
+    // Build contest object
+    const contestData = {
+      id: contestId,
+      huntType,
+      entryFee: entryFee || 0,
+      visibility: visibility || "public",
+      useVerifiedLocation: useVerifiedLocation || false,
+      verifiedLocationId,
+      treasureLocation,
+      treasurePhoto, // { url, filename, size }
+      contextPhotos: contextPhotos || [],
+      searchRadius: searchRadius || 200,
+      circleCenter,
+      initialClue,
+      proximityClues: proximityClues || [],
+      verificationMethod,
+      secretCode: verificationMethod === "code" ? secretCode : null,
+      calculatedDifficulty: calculatedDifficulty || "medium",
+      name,
+      description,
+      startImmediately: startImmediately !== false,
+      scheduledDateTime: !startImmediately ? new Date(scheduledDateTime) : null,
+      duration: duration || 24,
+      creatorId,
+      status: startImmediately ? "active" : "scheduled",
+
+      // Legacy fields
+      contestName: name,
+      subjectImage: treasurePhoto.url,
+      difficulty: calculatedDifficulty,
+    };
+
+    // Add AR config if AR hunt
+    if (verificationMethod === "ar" && arAnchorImage) {
+      contestData.arConfig = {
+        anchorImage: arAnchorImage, // { url, filename, size }
+        arText: arText || "Treasure Found!",
+        verified: true,
+      };
+    }
+
+    // Create contest
+    const newContest = await Contest.create(contestData);
+
+    res.status(201).json({
+      message: "Contest created successfully",
+      contest: {
+        id: newContest.id,
+        name: newContest.name,
+        status: newContest.status,
+        treasurePhoto: newContest.treasurePhoto,
+      },
+    });
   } catch (error) {
-    // Handle errors
-    console.error("Error in user registration:", error);
+    console.error("Error creating contest:", error);
     res.status(500).json({
-      message: "Unable to register new user",
+      message: "Unable to create contest",
       error: error.message,
     });
   }
