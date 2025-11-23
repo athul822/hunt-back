@@ -206,6 +206,7 @@ const ContestSchema = new mongoose.Schema(
           enum: ["joined", "playing", "completed", "abandoned"],
           default: "joined",
         },
+        _id: false,
       },
     ],
 

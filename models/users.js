@@ -59,7 +59,13 @@ const UsersSchema = new mongoose.Schema(
     termsAccepted: {
       type: Boolean,
       default: false,
-    }
+    },
+    coinBalance: {
+      type: Number,
+      default: 100, // Give new users some starting coins
+      min: 0
+    },
+    huntsParticipated: [String]
   },
   { timestamps: true }
 );

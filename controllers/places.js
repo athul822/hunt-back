@@ -1,6 +1,7 @@
 const { v4: uuidv4 } = require("uuid");
 const Places = require("../models/places");
 const Contest = require("../models/contest");
+const Users = require("../models/users");
 
 const getRandomCoordinate = async (lat, lng, radius) => {
   const randomAngle = Math.random() * 2 * Math.PI;
@@ -72,6 +73,9 @@ exports.listContestById = async (req, res) => {
   const query = { _id: req.body._id };
   console.log("Contest fetch by ID:", query);
   Contest.findOne(query)
+    .select(
+      "-secretCode -proximityClues -creatorId -contextPhotos -participants -views -ratings -arConfig -initialClue -treasureLocation"
+    )
     .then((data) => {
       if (data) {
         console.log("Contest found:", data._id);
@@ -342,6 +346,179 @@ exports.createContest = async (req, res) => {
     console.error("Error creating contest:", error);
     res.status(500).json({
       message: "Unable to create contest",
+      error: error.message,
+    });
+  }
+};
+
+exports.joinContest = async (req, res) => {
+  try {
+    const { contestId } = req.body;
+    const userId = req.user.id;
+
+    if (!contestId) {
+      return res.status(400).json({ message: "Contest ID is required" });
+    }
+
+    // Find contest and user
+    // Try finding by custom ID first, then fallback to _id if needed
+    let contest = await Contest.findOne({ id: contestId });
+    if (!contest) {
+      // Try finding by _id
+      try {
+        contest = await Contest.findById(contestId);
+      } catch (e) {
+        // Ignore error if contestId is not a valid ObjectId
+      }
+    }
+    
+    if (!contest) {
+      return res.status(404).json({ message: "Contest not found" });
+    }
+
+    // Ensure we use the consistent ID format
+    const targetContestId = contest.id || contest._id.toString();
+
+    // Fix for legacy participants data (strings instead of objects)
+    if (contest.participants && contest.participants.length > 0) {
+      const firstPart = contest.participants[0];
+      // Check if it's a string or an object without userId (legacy format)
+      if (typeof firstPart === 'string' || (firstPart && !firstPart.userId && !firstPart.status)) {
+        console.log("Migrating legacy participants data...");
+        // Create a plain array of IDs
+        const legacyIds = contest.participants.map(p => p.toString());
+        // Reset and repopulate
+        contest.participants = []; 
+        legacyIds.forEach(id => {
+          contest.participants.push({
+            userId: id,
+            joinedAt: new Date(),
+            status: 'joined'
+          });
+        });
+      }
+    }
+
+    const user = await Users.findOne({ id: userId });
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    // Check if already joined
+    if (user.huntsParticipated && (user.huntsParticipated.includes(targetContestId) || user.huntsParticipated.includes(contest._id.toString()))) {
+      return res.status(400).json({ message: "Already joined this contest" });
+    }
+
+    // Check entry fee
+    if (contest.entryFee > 0) {
+      if ((user.coinBalance || 0) < contest.entryFee) {
+        return res.status(400).json({ message: "Insufficient coin balance" });
+      }
+      // Deduct coins
+      user.coinBalance = (user.coinBalance || 0) - contest.entryFee;
+    }
+
+    // Add to participated lists
+    if (!user.huntsParticipated) user.huntsParticipated = [];
+    user.huntsParticipated.push(targetContestId);
+
+    if (!contest.participants) contest.participants = [];
+    contest.participants.push({
+      userId: userId,
+      joinedAt: new Date(),
+      status: 'joined'
+    });
+
+    // Save both
+    await user.save();
+    await contest.save();
+
+    res.json({
+      success: true,
+      message: "Successfully joined contest",
+      updatedBalance: user.coinBalance,
+    });
+  } catch (error) {
+    console.error("Error joining contest:", error);
+    res.status(500).json({
+      message: "Unable to join contest",
+      error: error.message,
+    });
+  }
+};
+
+exports.getContestTreasureLocation = async (req, res) => {
+  try {
+    const { contestId } = req.body;
+    const userId = req.user.id;
+
+    if (!contestId) {
+      return res.status(400).json({ message: "Contest ID is required" });
+    }
+
+    // Find contest - try custom ID first, then _id
+    let contest = await Contest.findOne({ id: contestId });
+    if (!contest) {
+      try {
+        contest = await Contest.findById(contestId);
+      } catch (e) {
+        // Ignore error if contestId is not a valid ObjectId
+      }
+    }
+    
+    if (!contest) {
+      return res.status(404).json({ message: "Contest not found" });
+    }
+
+    // Find user
+    const user = await Users.findOne({ id: userId });
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    // Authorization check: user must have joined the contest
+    const targetContestId = contest.id || contest._id.toString();
+    const hasJoined = user.huntsParticipated && (
+      user.huntsParticipated.includes(targetContestId) || 
+      user.huntsParticipated.includes(contest._id.toString())
+    );
+
+    if (!hasJoined) {
+      return res.status(403).json({ 
+        message: "You must join this contest to view its details" 
+      });
+    }
+
+    // Contest must be active to reveal treasure location
+    if (contest.status !== 'active') {
+      return res.status(403).json({ 
+        message: "This contest is not currently active",
+        status: contest.status
+      });
+    }
+
+    // Return safe data - exclude sensitive information
+    res.json({
+      success: true,
+      data: {
+        treasureLocation: contest.treasureLocation,
+        searchRadius: contest.searchRadius,
+        circleCenter: contest.circleCenter,
+        initialClue: contest.initialClue,
+        proximityClues: contest.proximityClues,
+        verificationMethod: contest.verificationMethod,
+        // Include AR text if it's an AR hunt (but NOT the anchor image)
+        arText: contest.arConfig?.arText,
+        // Include basic contest info for display
+        name: contest.name,
+        duration: contest.duration,
+        calculatedDifficulty: contest.calculatedDifficulty,
+      }
+    });
+  } catch (error) {
+    console.error("Error getting contest treasure location:", error);
+    res.status(500).json({
+      message: "Unable to get contest details",
       error: error.message,
     });
   }
