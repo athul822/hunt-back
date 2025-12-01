@@ -39,34 +39,63 @@ exports.createPlaces = async (req, res) => {
 };
 
 exports.listContest = async (req, res) => {
-  const query = {};
-  console.log("Contest fetch query:", query);
+  try {
+    const query = {};
+    const { bounds } = req.body;
 
-  Contest.find(query)
-    .select(
-      "_id contestName subjectImage difficulty maxParticipants duration prizePool startDate startTime address.display_name"
-    )
-    .then((data) => {
-      if (data && data.length > 0) {
-        console.log("Contests found:", data.length);
-        res.json({
-          message: "Contest fetch Success",
-          data,
-        });
-      } else {
-        console.log("No contests found for the given query");
-        res.status(400).json({
-          message: "No contests found",
-        });
+    // Handle bounding box query if bounds are provided
+    if (bounds) {
+      const { minLat, maxLat, minLng, maxLng } = bounds;
+      if (minLat && maxLat && minLng && maxLng) {
+        // Use $or to search both circleCenter and treasureLocation
+        query.$or = [
+          {
+            "circleCenter.latitude": { $gte: minLat, $lte: maxLat },
+            "circleCenter.longitude": { $gte: minLng, $lte: maxLng }
+          },
+          {
+            "treasureLocation.latitude": { $gte: minLat, $lte: maxLat },
+            "treasureLocation.longitude": { $gte: minLng, $lte: maxLng }
+          }
+        ];
       }
-    })
-    .catch((err) => {
-      console.error("Error fetching contests:", err);
-      res.status(400).json({
-        message: "unable to fetch",
-        error: err.message,
+    }
+
+    // Only show active or scheduled contests by default if not specified
+    if (!req.body.status) {
+      query.status = { $in: ["active", "scheduled"] };
+    } else {
+      query.status = req.body.status;
+    }
+
+    console.log("Contest fetch query:", JSON.stringify(query));
+
+    const contests = await Contest.find(query)
+      .select(
+        "_id contestName subjectImage difficulty maxParticipants duration prizePool startDate startTime address.display_name circleCenter treasureLocation"
+      )
+      .lean(); // Use lean() for better performance
+
+    if (contests && contests.length > 0) {
+      console.log("Contests found:", contests.length);
+      res.json({
+        message: "Contest fetch Success",
+        data: contests,
       });
+    } else {
+      console.log("No contests found for the given query");
+      res.status(200).json({ // Return 200 with empty array instead of 400
+        message: "No contests found",
+        data: []
+      });
+    }
+  } catch (err) {
+    console.error("Error fetching contests:", err);
+    res.status(400).json({
+      message: "unable to fetch",
+      error: err.message,
     });
+  }
 };
 
 exports.listContestById = async (req, res) => {

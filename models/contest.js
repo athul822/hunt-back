@@ -267,6 +267,10 @@ ContestSchema.index({
   "treasureLocation.longitude": 1,
 });
 ContestSchema.index({ visibility: 1, status: 1 });
+ContestSchema.index({
+  "circleCenter.latitude": 1,
+  "circleCenter.longitude": 1,
+});
 
 // Virtual for active status
 ContestSchema.virtual("isActive").get(function () {

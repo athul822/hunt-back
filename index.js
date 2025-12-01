@@ -28,7 +28,7 @@ const app = express();
 app.use(helmetConfig);
 
 // Apply global rate limiting
-app.use(limiter);
+// app.use(limiter);
 
 // Body parser middleware
 app.use(express.json({ limit: "10mb" })); 
